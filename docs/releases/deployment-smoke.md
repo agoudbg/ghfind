@@ -46,6 +46,7 @@ SMOKE_EXPECTED_ORIGIN=https://dev.ghfind.com
 
 `SMOKE_EXPECTED_ORIGIN` defaults to the `SMOKE_BASE_URL` origin when unset.
 
+
 Run `pnpm smoke:deployment`. The script checks the profile, deterministic score
 API, badge SVG, autocomplete, score leaderboard,
 facet bucket, projects page, sitemap XML, MCP tools/list transport, campaign
@@ -54,9 +55,9 @@ Missing required values, `localhost` canonical output on a remote smoke,
 unexpected status, or malformed response content fails the run.
 
 Run `pnpm smoke:deployment:selftest` to exercise every smoke branch against a
-local fixture server. CI runs this self-test without production secrets; a
-release must still run the real smoke against the deployed Cloudflare Worker
-origin.
+ local fixture server. CI runs this self-test without production secrets; a
+ release must still run the real smoke against the deployed Cloudflare Worker
+ origin.
 
 ## Historical split-backend smoke
 

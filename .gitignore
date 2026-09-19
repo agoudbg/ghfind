@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+**/node_modules/
+platform/**/dist/
 /.pnp
 .pnp.*
 .yarn/*
@@ -67,3 +69,4 @@ scripts/repo-research/out/
 .wrangler/
 .dev.vars
 tmp/
+/platform/runtime/wrangler.web.production.generated.json
