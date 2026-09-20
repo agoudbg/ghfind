@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowDownUp, ArrowRight, ArrowUpRight, Bookmark, Check, CheckCheck, Code2, FolderGit2, GitFork, Globe2, LayoutGrid, List, MapPin, Plus, Search, SlidersHorizontal, Star, Users, X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import type { Talent } from './data';
+import { TalentAvatar } from './TalentAvatar';
 import styles from './talent.module.css';
 import { TalentIntake } from './TalentIntake';
 import { TalentDetail } from './TalentDetail';
@@ -48,7 +49,7 @@ export function TalentDirectory({ initialTalents }: { initialTalents: Talent[] }
     <section className={styles.hero}>
       <h1>从一行代码，<br />发现<span>值得认识的人。</span><span className={styles.heroAsterisk}>✳</span></h1>
       <p>不止是一份简历。透过开源项目、技术实践与真实作品，<br className={styles.desktopBreak} /> 认识开发者，也找到下一位同行者。</p>
-      <div className={styles.heroBottom}><div className={styles.people}><div className={styles.miniAvatars}>{talents.slice(0, 4).map(t => <span key={t.id} className={`${styles.avatar} ${styles[t.color]}`}>{t.initials}</span>)}</div><span>以 GitHub 为起点，连接更多可能</span></div><button className={styles.primary} onClick={() => setAdding(true)}><Plus size={16} /> 收录人才</button></div>
+      <div className={styles.heroBottom}><div className={styles.people}><div className={styles.miniAvatars}>{talents.slice(0, 4).map(t => <TalentAvatar key={t.id} talent={t} />)}</div><span>以 GitHub 为起点，连接更多可能</span></div><button className={styles.primary} onClick={() => setAdding(true)}><Plus size={16} /> 收录人才</button></div>
       <div className={styles.heroCode} aria-hidden="true"><Code2 size={32} /><span>built by humans.</span><div><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div></div>
     </section>
 
@@ -62,7 +63,7 @@ export function TalentDirectory({ initialTalents }: { initialTalents: Talent[] }
       <div className={`${styles.grid} ${view === 'list' ? styles.list : ''}`}>
         {results.map(t => <article className={styles.card} key={t.id}>
           <button className={styles.cardHitArea} onClick={() => openTalent(t)} aria-label={`查看${t.name}档案`} />
-          <div className={styles.cardTop}><div className={styles.identity}><span className={`${styles.avatar} ${styles[t.color]}`}>{t.initials}<span className={styles.avatarMark}><GitFork size={11} /></span></span><span><strong>{t.name}</strong><small>{t.handle ? `@${t.handle}` : "手动收录"}</small></span></div><button className={styles.bookmark} aria-label={`${saved.includes(t.id) ? '取消收藏' : '收藏'}${t.name}`} aria-pressed={saved.includes(t.id)} onClick={() => toggleSaved(t.id)}><Bookmark size={18} fill={saved.includes(t.id) ? 'currentColor' : 'none'} /></button></div>
+          <div className={styles.cardTop}><div className={styles.identity}><TalentAvatar talent={t} badge /><span><strong>{t.name}</strong><small>{t.handle ? `@${t.handle}` : "手动收录"}</small></span></div><button className={styles.bookmark} aria-label={`${saved.includes(t.id) ? '取消收藏' : '收藏'}${t.name}`} aria-pressed={saved.includes(t.id)} onClick={() => toggleSaved(t.id)}><Bookmark size={18} fill={saved.includes(t.id) ? 'currentColor' : 'none'} /></button></div>
           <h2>{t.role}</h2><p className={styles.bio}>{t.bio}</p><div className={styles.meta}><span><MapPin size={12} />{t.location}</span>{t.available ? <span className={styles.available}><i /> 愿意交流</span> : <span><Globe2 size={12} /> {t.pending ? "资料待补充" : "活跃于开源社区"}</span>}</div>
           <div className={styles.skills}>{t.skills.map(s => <span key={s}>{s}</span>)}</div>
           <div className={styles.project}><span><FolderGit2 size={15} /><strong>{t.project}</strong><ArrowUpRight size={14} /></span><small>{t.projectDescription}</small></div>

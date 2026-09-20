@@ -6,6 +6,7 @@ import { DialogClose, DialogDescription, DialogTitle } from '@/components/ui/dia
 import { Link } from '@/i18n/navigation';
 import { profileFields } from './intake';
 import type { Talent } from './data';
+import { TalentAvatar } from './TalentAvatar';
 import styles from './talent.module.css';
 
 function SourceLink({ url, children }: { url?: string; children: React.ReactNode }) {
@@ -22,7 +23,7 @@ export function TalentDetail({ talent: t, saved, onSave }: { talent: Talent; sav
   return <>
     <DialogClose className={styles.close} aria-label="关闭档案"><X size={19} /></DialogClose>
     <div className={styles.detailEyebrow}>DEVELOPER PROFILE <span>{t.pending ? '待审核档案' : '收录档案'}</span></div>
-    <div className={styles.detailHeader}><span className={`${styles.avatar} ${styles[t.color]}`}>{t.initials}</span><div><DialogTitle className={styles.detailTitle}>{t.name}</DialogTitle><span>{t.handle ? `@${t.handle} · ` : ''}{t.role}</span></div><button className={`${styles.secondary} ${styles.detailSave}`} onClick={onSave} aria-pressed={saved}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />{saved ? '已收藏' : '收藏人才'}</button></div>
+    <div className={styles.detailHeader}><TalentAvatar talent={t} /><div><DialogTitle className={styles.detailTitle}>{t.name}</DialogTitle><span>{t.handle ? `@${t.handle} · ` : ''}{t.role}</span></div><button className={`${styles.secondary} ${styles.detailSave}`} onClick={onSave} aria-pressed={saved}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'} />{saved ? '已收藏' : '收藏人才'}</button></div>
     <DialogDescription className={styles.detailDescription}>{t.bio}</DialogDescription>
     <div className={styles.profileTags} aria-label="人才标签"><span><MapPin size={13} />{t.location}</span>{t.handle && <span><GitFork size={13} />{t.handle}</span>}{tags.map(tag => <span key={tag}><Code2 size={12} />{tag}</span>)}</div>
     <div className={styles.profileColumns}>

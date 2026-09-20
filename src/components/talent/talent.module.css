@@ -44,3 +44,5 @@
 .sourceLink { color:var(--talent-green); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
 .sourceLink:hover { color:var(--foreground); }
 .sourceLink:focus-visible { outline:2px solid var(--ring); outline-offset:3px; border-radius:2px; }
+
+.avatarImage { display:block; width:100%; height:100%; object-fit:cover; border-radius:inherit; }
