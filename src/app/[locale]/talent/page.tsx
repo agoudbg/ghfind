@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { TalentDirectory } from '@/components/talent/TalentDirectory';
+import { listPublishedTalents } from '@/lib/talent-db';
+import type { Talent } from '@/components/talent/data';
 
 export const metadata: Metadata = {
   title: '人才库 · ghfind',
@@ -8,8 +10,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function TalentPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <TalentDirectory />;
+  let talents: Talent[] = [];
+  try {
+    talents = await listPublishedTalents();
+  } catch (error) {
+    console.error('talent.load_failed', error);
+  }
+  return <TalentDirectory initialTalents={talents} />;
 }

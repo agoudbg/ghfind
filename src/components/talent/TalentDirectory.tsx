@@ -3,16 +3,16 @@
 import { useState } from 'react';
 import { ArrowDownUp, ArrowRight, ArrowUpRight, Bookmark, Check, CheckCheck, Code2, FolderGit2, GitFork, Globe2, LayoutGrid, List, MapPin, Plus, Search, SlidersHorizontal, Star, Users, X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { demoTalents, type Talent } from './data';
+import type { Talent } from './data';
 import styles from './talent.module.css';
 import { TalentIntake } from './TalentIntake';
 import { TalentDetail } from './TalentDetail';
+import { submitTalentIntake } from './actions';
 
-const directions = ['全部方向', '全栈开发', '前端开发', 'AI / 机器学习', '后端 / 基础设施'];
 const format = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
-export function TalentDirectory() {
-  const [talents, setTalents] = useState(demoTalents);
+export function TalentDirectory({ initialTalents }: { initialTalents: Talent[] }) {
+  const [talents] = useState(initialTalents);
   const [query, setQuery] = useState('');
   const [direction, setDirection] = useState('全部方向');
   const [saved, setSaved] = useState<string[]>([]);
@@ -25,30 +25,35 @@ export function TalentDirectory() {
   const [view, setView] = useState('grid');
   const [selected, setSelected] = useState<Talent | null>(null);
   const [adding, setAdding] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
   const toggleSaved = (id: string) => setSaved(prev => prev.includes(id) ? prev.filter(value => value !== id) : [...prev, id]);
   const openTalent = (talent: Talent) => { setSelected(talent); };
   const reset = () => { setQuery(''); setDirection('全部方向'); setLocation('全部地点'); setSource('全部来源'); setAvailable(false); };
+  const directions = ['全部方向', ...new Set(talents.map(t => t.direction))];
   const activeFilters = Number(location !== '全部地点') + Number(source !== '全部来源') + Number(available);
-  const results = talents.filter(t => (tab !== 'saved' || saved.includes(t.id)) && (direction === '全部方向' || t.direction === direction) && (location === '全部地点' || t.location === location) && (source === '全部来源' || t.source.includes(source)) && (!available || t.available) && [t.name, t.handle, t.role, t.bio, t.location, ...t.skills].join(' ').toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => sort === 'stars' ? b.stars - a.stars : sort === 'activity' ? b.contributions - a.contributions : 0);
+  const results = talents.filter(t => (tab !== 'saved' || saved.includes(t.id)) && (direction === '全部方向' || t.direction === direction) && (location === '全部地点' || t.location === location) && (source === '全部来源' || t.source.includes(source)) && (!available || t.available) && [t.name, t.handle, t.role, t.bio, t.location, ...t.skills].join(' ').toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => sort === 'stars' ? (b.stars ?? -1) - (a.stars ?? -1) : sort === 'activity' ? (b.contributions ?? -1) - (a.contributions ?? -1) : 0);
 
-  function addTalent(talent: Talent) {
-    setTalents(prev => [{ ...talent, id: `intake-${crypto.randomUUID()}` }, ...prev]);
+  async function addTalent(talent: Talent) {
+    setSubmitting(true);
+    const result = await submitTalentIntake(talent);
+    setSubmitting(false);
+    if (!result.ok) { setNotice(result.message); return; }
     setAdding(false); reset(); setTab('all'); setSort('recommended');
-    setNotice(`已将 ${talent.name} 加入本次预览，仅保留公开字段，刷新后重置。`);
+    setNotice(`已收到对 ${talent.name} 的收录提交，仅保留公开字段，审核通过后展示。`);
   }
 
   return <main className={styles.page}>
-    <div className={styles.topline}><span>职业发展 <span className={styles.slash}>/</span> <strong>人才库</strong></span><span className={styles.preview}><span /> 示例数据 · PREVIEW</span></div>
+    <div className={styles.topline}><span>职业发展 <span className={styles.slash}>/</span> <strong>人才库</strong></span><span className={styles.preview}><span /> 社区收录 · 持续更新</span></div>
     <section className={styles.hero}>
       <h1>从一行代码，<br />发现<span>值得认识的人。</span><span className={styles.heroAsterisk}>✳</span></h1>
       <p>不止是一份简历。透过开源项目、技术实践与真实作品，<br className={styles.desktopBreak} /> 认识开发者，也找到下一位同行者。</p>
-      <div className={styles.heroBottom}><div className={styles.people}><div className={styles.miniAvatars}>{demoTalents.slice(0, 4).map(t => <span key={t.id} className={`${styles.avatar} ${styles[t.color]}`}>{t.initials}</span>)}</div><span>以 GitHub 为起点，连接更多可能</span></div><button className={styles.primary} onClick={() => setAdding(true)}><Plus size={16} /> 收录人才</button></div>
+      <div className={styles.heroBottom}><div className={styles.people}><div className={styles.miniAvatars}>{talents.slice(0, 4).map(t => <span key={t.id} className={`${styles.avatar} ${styles[t.color]}`}>{t.initials}</span>)}</div><span>以 GitHub 为起点，连接更多可能</span></div><button className={styles.primary} onClick={() => setAdding(true)}><Plus size={16} /> 收录人才</button></div>
       <div className={styles.heroCode} aria-hidden="true"><Code2 size={32} /><span>built by humans.</span><div><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div></div>
     </section>
 
     <section className={styles.directory} aria-label="人才发现">
-      <div className={styles.tabs}><div><button data-active={tab === 'all'} onClick={() => setTab('all')}><Users size={16} /> 发现人才 <span>{talents.length}</span></button><button data-active={tab === 'saved'} onClick={() => setTab('saved')}><Bookmark size={16} /> 我的收藏 <span>{saved.length}</span></button></div><span className={styles.sessionHint}>示例数据 · 收藏与录入仅本次预览有效</span></div>
+      <div className={styles.tabs}><div><button data-active={tab === 'all'} onClick={() => setTab('all')}><Users size={16} /> 发现人才 <span>{talents.length}</span></button><button data-active={tab === 'saved'} onClick={() => setTab('saved')}><Bookmark size={16} /> 我的收藏 <span>{saved.length}</span></button></div><span className={styles.sessionHint}>收藏仅在本次浏览中保留</span></div>
       <div className={styles.searchRow}><label className={styles.search}><Search size={19} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索姓名、GitHub 用户名、技术栈或城市…" aria-label="搜索人才" />{query && <button aria-label="清空搜索" onClick={() => setQuery('')}><X size={15} /></button>}</label><button className={styles.secondary} data-active={filters} onClick={() => setFilters(!filters)} aria-expanded={filters}><SlidersHorizontal size={16} /> 筛选 {activeFilters > 0 && <span>{activeFilters}</span>}</button></div>
       {filters && <div className={styles.filters}><label>所在地点<select value={location} onChange={e => setLocation(e.target.value)}>{['全部地点', ...new Set(talents.map(t => t.location))].map(s => <option key={s}>{s}</option>)}</select></label><label>数据来源<select value={source} onChange={e => setSource(e.target.value)}>{['全部来源', 'GitHub', '人工整理'].map(s => <option key={s}>{s}</option>)}</select></label><label className={styles.checkbox}><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} /> 仅看愿意交流的人才</label><button className={styles.textButton} onClick={reset}>重置筛选</button></div>}
       <div className={styles.chips}>{directions.map(d => <button key={d} data-active={direction === d} onClick={() => setDirection(d)}>{d}</button>)}</div>
@@ -61,13 +66,13 @@ export function TalentDirectory() {
           <h2>{t.role}</h2><p className={styles.bio}>{t.bio}</p><div className={styles.meta}><span><MapPin size={12} />{t.location}</span>{t.available ? <span className={styles.available}><i /> 愿意交流</span> : <span><Globe2 size={12} /> {t.pending ? "资料待补充" : "活跃于开源社区"}</span>}</div>
           <div className={styles.skills}>{t.skills.map(s => <span key={s}>{s}</span>)}</div>
           <div className={styles.project}><span><FolderGit2 size={15} /><strong>{t.project}</strong><ArrowUpRight size={14} /></span><small>{t.projectDescription}</small></div>
-          <div className={styles.metrics}><span><Star size={13} /><strong>{t.pending ? "—" : format(t.stars)}</strong> Stars</span><span><span className={styles.contributionIcon}>▥</span><strong>{t.pending ? "—" : t.contributions.toLocaleString()}</strong> 年贡献</span><div className={styles.activity} aria-hidden="true">{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <i key={n} style={{ opacity: .25 + ((n * 7 + t.contributions) % 9) / 12 }} />)}</div></div>
+          <div className={styles.metrics}><span><Star size={13} /><strong>{t.stars === null ? "—" : format(t.stars)}</strong> Stars</span><span><span className={styles.contributionIcon}>▥</span><strong>{t.contributions === null ? "—" : t.contributions.toLocaleString()}</strong> 年贡献</span></div>
           <div className={styles.cardFooter}><span><Check size={12} />{t.source}</span><span className={styles.cardDetailLink}>查看档案 <ArrowUpRight size={14} /></span></div>
         </article>)}
       </div>
       {results.length === 0 && <div className={styles.empty}><Search size={28} /><h3>{tab === 'saved' && !saved.length ? '把想进一步了解的人，留在这里' : '暂时没有匹配的人才'}</h3><p>{tab === 'saved' && !saved.length ? '点击人才卡片右上角的收藏图标，建立你的候选清单。' : '试试其他技术栈，或放宽筛选条件。'}</p><button className={styles.secondary} onClick={() => { reset(); setTab('all'); }}>浏览全部人才 <ArrowRight size={14} /></button></div>}
       <div className={styles.endline}><span /><p>好的人才，值得被看见</p><span /></div>
-      <div className={styles.bottomNote}><GitFork size={17} /><p><strong>源于开源，不止于开源</strong><br />GitHub 公开信息 × 人工精选补充，让每一份才华都有迹可循。</p><span>当前为虚构示例，尚未接入真实数据</span></div>
+      <div className={styles.bottomNote}><GitFork size={17} /><p><strong>源于开源，不止于开源</strong><br />GitHub 公开信息 × 人工精选补充，让每一份才华都有迹可循。</p><span>数据来源于 GitHub 公开信息与站内合集</span></div>
     </section>
 
     <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
@@ -75,6 +80,6 @@ export function TalentDirectory() {
         {selected && <TalentDetail talent={selected} saved={saved.includes(selected.id)} onSave={() => toggleSaved(selected.id)} />}
       </DialogContent>
     </Dialog>
-    {adding && <TalentIntake onClose={() => setAdding(false)} onAdd={addTalent} />}
+    {adding && <TalentIntake busy={submitting} onClose={() => setAdding(false)} onAdd={addTalent} />}
   </main>;
 }
