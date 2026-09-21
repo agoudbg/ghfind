@@ -170,6 +170,144 @@ export async function listPublishedTalents(locale?: string): Promise<Talent[]> {
   return result.rows.map((row) => mapTalent(row as Record<string, unknown>, lang));
 }
 
+// ---------------------------------------------------------------------------
+// Paginated directory queries. The list page reads light rows (heavy JSON
+// columns such as projects/sources/note stay out of the payload and are
+// fetched per-talent via getTalentById when the detail modal opens), so a
+// page view costs ~pageSize row reads instead of the whole published set.
+// ---------------------------------------------------------------------------
+
+const LIST_COLUMNS = `t.id, t.name, t.handle, t.role, t.location, t.direction, t.bio,
+  t.skills_json, t.stars, t.contributions, t.source, t.project, t.project_description,
+  t.available, t.color, t.official_tags_json, t.pinned, t.corner_tag, t.status,
+  t.sort_order, t.created_at, t.content_i18n_json`;
+
+export type TalentSort = "recommended" | "stars" | "activity";
+
+export type TalentListParams = {
+  locale?: string;
+  query?: string;
+  direction?: string;
+  location?: string;
+  source?: "github" | "manual";
+  available?: boolean;
+  sort?: TalentSort;
+  /** 0-based page index. */
+  page?: number;
+  pageSize?: number;
+  /** Saved-tab lookup by id; bypasses every other filter. */
+  ids?: string[];
+};
+
+export type TalentListResult = {
+  items: Talent[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+const DEFAULT_PAGE_SIZE = 48;
+const MAX_PAGE_SIZE = 96;
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+export async function listTalentsPage(params: TalentListParams = {}): Promise<TalentListResult> {
+  const db = database();
+  await ensureSchema(db);
+  const lang = normLang(params.locale);
+  const page = Math.max(0, Math.floor(params.page ?? 0));
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(params.pageSize ?? DEFAULT_PAGE_SIZE)));
+
+  const where: string[] = ["t.status = 'published'"];
+  const args: (string | number)[] = [];
+  const ids = (params.ids ?? []).map((id) => id.trim().toLowerCase()).filter(Boolean).slice(0, 100);
+  if (ids.length) {
+    where.push(`t.id IN (${ids.map(() => "?").join(", ")})`);
+    args.push(...ids);
+  } else {
+    const query = params.query?.trim();
+    if (query) {
+      const like = `%${escapeLike(query)}%`;
+      where.push(`(t.name LIKE ? ESCAPE '\\' OR t.handle LIKE ? ESCAPE '\\' OR t.role LIKE ? ESCAPE '\\' OR t.bio LIKE ? ESCAPE '\\' OR t.location LIKE ? ESCAPE '\\' OR t.skills_json LIKE ? ESCAPE '\\')`);
+      args.push(like, like, like, like, like, like);
+    }
+    if (params.direction) { where.push("t.direction = ?"); args.push(params.direction); }
+    if (params.location) { where.push("t.location = ?"); args.push(params.location); }
+    if (params.source === "github") where.push("t.source LIKE '%GitHub%'");
+    if (params.source === "manual") where.push("t.source NOT LIKE '%GitHub%'");
+    if (params.available) where.push("t.available = 1");
+  }
+  const whereSql = where.join(" AND ");
+  const sort = params.sort ?? "recommended";
+  const orderSql = sort === "stars"
+    ? "t.stars DESC, t.pinned DESC, t.sort_order ASC, t.created_at DESC"
+    : sort === "activity"
+      ? "t.contributions DESC, t.pinned DESC, t.sort_order ASC, t.created_at DESC"
+      : "t.pinned DESC, t.sort_order ASC, t.created_at DESC";
+
+  const countResult = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM talent_profiles t WHERE ${whereSql}`,
+    args,
+  });
+  const total = Number(countResult.rows[0]?.n ?? 0);
+  const result = await db.execute({
+    // scores.username stores the lowercased GitHub login; hidden scores stay private.
+    sql: `SELECT ${LIST_COLUMNS}, s.final_score AS ghfind_score
+          FROM talent_profiles t
+          LEFT JOIN scores s ON s.username = lower(t.id) AND s.hidden = 0
+          WHERE ${whereSql}
+          ORDER BY ${orderSql}
+          LIMIT ? OFFSET ?`,
+    args: [...args, pageSize, page * pageSize],
+  });
+  const items = result.rows.map((row) => mapTalent(row as Record<string, unknown>, lang));
+  return { items, total, page, pageSize, hasMore: (page + 1) * pageSize < total };
+}
+
+/** Full record for the detail modal, including the heavy JSON columns the
+ * paginated list deliberately leaves out. */
+export async function getTalentById(id: string, locale?: string): Promise<Talent | null> {
+  const db = database();
+  await ensureSchema(db);
+  const lang = normLang(locale);
+  const result = await db.execute({
+    sql: `SELECT t.*, s.final_score AS ghfind_score
+          FROM talent_profiles t
+          LEFT JOIN scores s ON s.username = lower(t.id) AND s.hidden = 0
+          WHERE t.id = ? AND t.status = 'published'
+          LIMIT 1`,
+    args: [id.trim().toLowerCase()],
+  });
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  return row ? mapTalent(row, lang) : null;
+}
+
+export type TalentFacets = { directions: string[]; locations: string[] };
+
+// Facets require a distinct scan of the published set; cache briefly per
+// isolate so a directory visit pays it at most once per TTL.
+let facetsCache: { at: number; value: TalentFacets } | null = null;
+const FACETS_TTL_MS = 5 * 60 * 1000;
+
+export async function listTalentFacets(): Promise<TalentFacets> {
+  if (facetsCache && Date.now() - facetsCache.at < FACETS_TTL_MS) return facetsCache.value;
+  const db = database();
+  await ensureSchema(db);
+  const [directions, locations] = await Promise.all([
+    db.execute("SELECT DISTINCT direction FROM talent_profiles WHERE status = 'published' ORDER BY direction"),
+    db.execute("SELECT DISTINCT location FROM talent_profiles WHERE status = 'published' ORDER BY location"),
+  ]);
+  const value: TalentFacets = {
+    directions: directions.rows.map((r) => String(r.direction ?? "")).filter(Boolean),
+    locations: locations.rows.map((r) => String(r.location ?? "")).filter(Boolean),
+  };
+  facetsCache = { at: Date.now(), value };
+  return value;
+}
+
 const MAX_FIELD_LENGTH = 2_000;
 
 function clipped(value: string | undefined): string {
