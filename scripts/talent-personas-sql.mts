@@ -46,11 +46,10 @@ for (const file of files) {
     skipped.push({ file, reason: missing.length ? `empty: ${missing.join(",")}` : `bad direction_key: ${persona.direction_key}` });
     continue;
   }
-  const i18n = JSON.stringify({
-    en: { role: persona.role_en, direction: persona.direction_en, note: persona.note_en },
-  });
+  // Merge en overlays per key so previously translated $.en.bio /
+  // $.en.project_description survive (a wholesale replace would wipe them).
   statements.push(
-    `UPDATE talent_profiles SET role = ${q(persona.role_zh)}, direction = ${q(persona.direction_zh)}, note = ${q(persona.note_zh)}, content_i18n_json = ${q(i18n)}, updated_at = ${Date.now()} WHERE id = ${q(id)};`,
+    `UPDATE talent_profiles SET role = ${q(persona.role_zh)}, direction = ${q(persona.direction_zh)}, note = ${q(persona.note_zh)}, content_i18n_json = json_set(COALESCE(content_i18n_json, '{}'), '$.en.role', ${q(persona.role_en)}, '$.en.direction', ${q(persona.direction_en)}, '$.en.note', ${q(persona.note_en)}), updated_at = ${Date.now()} WHERE id = ${q(id)};`,
   );
 }
 
