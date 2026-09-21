@@ -61,12 +61,23 @@ const SCHEMA_STATEMENT = `CREATE TABLE IF NOT EXISTS talent_profiles (
 
 const I18N_STATEMENT = `ALTER TABLE talent_profiles ADD COLUMN content_i18n_json TEXT`;
 
+const OFFICIAL_TAGS_STATEMENT = `ALTER TABLE talent_profiles ADD COLUMN official_tags_json TEXT`;
+
+const PIN_STATEMENT = `ALTER TABLE talent_profiles ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`;
+
+const CORNER_TAG_STATEMENT = `ALTER TABLE talent_profiles ADD COLUMN corner_tag TEXT`;
+
 function ensureSchema(db: Client): Promise<void> {
   if (!schemaReady) {
     schemaReady = db.execute(SCHEMA_STATEMENT)
-      // Best-effort twin of migrations/0009_talent_i18n.sql for Turso/local;
+      // Best-effort twins of migrations/0009_talent_i18n.sql,
+      // migrations/0010_talent_official_tags.sql and
+      // migrations/0011_talent_pin_corner.sql for Turso/local;
       // a duplicate-column error just means the column already exists.
       .then(() => db.execute(I18N_STATEMENT).catch(() => undefined))
+      .then(() => db.execute(OFFICIAL_TAGS_STATEMENT).catch(() => undefined))
+      .then(() => db.execute(PIN_STATEMENT).catch(() => undefined))
+      .then(() => db.execute(CORNER_TAG_STATEMENT).catch(() => undefined))
       .then(() => undefined)
       .catch((error) => {
         schemaReady = null;
@@ -129,6 +140,11 @@ function mapTalent(row: Record<string, unknown>, lang: "zh" | "en" = "zh"): Tale
     projectDescription: pick("project_description", rowString(row.project_description)),
     note: pick("note", rowString(row.note)),
     available,
+    officialTags: parseJson<string[]>(row.official_tags_json, [])
+      .filter((tag) => typeof tag === "string" && tag.trim())
+      .map((tag) => tag.trim()),
+    pinned: Number(row.pinned) === 1 ? true : undefined,
+    cornerTag: rowString(row.corner_tag).trim() || undefined,
     tags: [direction, ...skills, ...(available ? ["愿意交流"] : [])],
     projects: parseJson<Talent["projects"]>(row.projects_json, []),
     sources: parseJson<Talent["sources"]>(row.sources_json, []),
@@ -148,7 +164,7 @@ export async function listPublishedTalents(locale?: string): Promise<Talent[]> {
           FROM talent_profiles t
           LEFT JOIN scores s ON s.username = lower(t.id) AND s.hidden = 0
           WHERE t.status = 'published'
-          ORDER BY t.sort_order ASC, t.created_at DESC`,
+          ORDER BY t.pinned DESC, t.sort_order ASC, t.created_at DESC`,
     args: [],
   });
   return result.rows.map((row) => mapTalent(row as Record<string, unknown>, lang));
