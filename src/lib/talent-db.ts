@@ -123,6 +123,7 @@ function mapTalent(row: Record<string, unknown>, lang: "zh" | "en" = "zh"): Tale
     skills,
     stars: nullableNumber(row.stars),
     contributions: nullableNumber(row.contributions),
+    score: nullableNumber(row.ghfind_score),
     source: rowString(row.source) || "人工整理",
     project: rowString(row.project),
     projectDescription: pick("project_description", rowString(row.project_description)),
@@ -142,9 +143,12 @@ export async function listPublishedTalents(locale?: string): Promise<Talent[]> {
   await ensureSchema(db);
   const lang = normLang(locale);
   const result = await db.execute({
-    sql: `SELECT * FROM talent_profiles
-          WHERE status = 'published'
-          ORDER BY sort_order ASC, created_at DESC`,
+    // scores.username stores the lowercased GitHub login; hidden scores stay private.
+    sql: `SELECT t.*, s.final_score AS ghfind_score
+          FROM talent_profiles t
+          LEFT JOIN scores s ON s.username = lower(t.id) AND s.hidden = 0
+          WHERE t.status = 'published'
+          ORDER BY t.sort_order ASC, t.created_at DESC`,
     args: [],
   });
   return result.rows.map((row) => mapTalent(row as Record<string, unknown>, lang));

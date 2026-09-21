@@ -43,7 +43,7 @@ it("lists only published talents, mapped to the directory shape", async () => {
   vi.stubEnv("TURSO_DATABASE_URL", "file:test.db");
   client.execute.mockResolvedValueOnce({ rows: [] }); // ensureSchema DDL
   client.execute.mockResolvedValueOnce({ rows: [] }); // ensureSchema i18n ALTER
-  client.execute.mockResolvedValueOnce({ rows: [publishedRow, { ...publishedRow, id: "x", status: "pending" }] });
+  client.execute.mockResolvedValueOnce({ rows: [{ ...publishedRow, ghfind_score: 94.2 }, { ...publishedRow, id: "x", status: "pending" }] });
   const talents = await listPublishedTalents();
   expect(client.execute.mock.calls[2][0].sql).toContain("status = 'published'");
   expect(talents).toHaveLength(2);
@@ -52,6 +52,8 @@ it("lists only published talents, mapped to the directory shape", async () => {
   expect(talent.initials).toBe("梁博");
   expect(talent.stars).toBe(1707);
   expect(talent.contributions).toBeNull();
+  expect(talent.score).toBe(94.2);
+  expect(talents[1].score).toBeNull();
   expect(talent.tags).toEqual(["后端 / 基础设施", "Java", "Python"]);
   expect(talent.pending).toBeUndefined();
 });
@@ -98,6 +100,7 @@ it("stores intake submissions as pending without leaking non-public fields", asy
     skills: ["TypeScript"],
     stars: null,
     contributions: null,
+    score: null,
     source: "人工整理",
     project: "",
     projectDescription: "",
